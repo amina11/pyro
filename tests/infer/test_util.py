@@ -1,11 +1,12 @@
 import math
 
+import pytest
 import torch
 
 import pyro
 import pyro.distributions as dist
 import pyro.poutine as poutine
-from pyro.infer.util import MultiFrameTensor
+from pyro.infer.util import MultiFrameTensor, build_junction_tree
 from tests.common import assert_equal
 
 
@@ -44,3 +45,29 @@ def test_multi_frame_tensor():
     for name, expected_sum in expected.items():
         actual_sum = actual.sum_to(stacks[name])
         assert_equal(actual_sum, expected_sum, msg=name)
+
+
+JUNCTION_TREE_EXAMPLES = [
+    ([0], []),
+    ([0], [frozenset([0])]),
+    ([0], [frozenset([0]), frozenset([0])]),
+    ([0, 1], [frozenset([0]), frozenset([1])]),
+    ([0, 1], [frozenset([0]), frozenset([1]), frozenset([0, 1])]),
+    ([0, 1, 2], [frozenset([0, 1]), frozenset([1, 2]), frozenset([2, 0])]),
+]
+
+
+@pytest.mark.xfail(reason='TODO(fritzo)')
+@pytest.mark.parametrize('vertices,arcs', JUNCTION_TREE_EXAMPLES)
+def test_build_junction_tree(vertices, arcs):
+    junctions, edges = build_junction_tree(vertices, arcs)
+    assert isinstance(junctions, list)
+    assert isinstance(edges, list)
+    for junction in junctions:
+        assert isinstance(junction, frozenset)
+        assert all(v in vertices for v in junction)
+    for head, tail in arcs:
+        intersection = junctions[head] & junctions[tail]
+        assert intersection
+        assert intersection != junctions[head]
+        assert intersection != junctions[tail]
